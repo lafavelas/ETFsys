@@ -35,11 +35,14 @@ The data layer hands every downstream module one `MarketData` object with aligne
 
 | Table | Index × columns | Used by | Change vs. paper |
 | --- | --- | --- | --- |
-| `ohlc` | date × (ticker, field) | All strategies, backtest | Daily, with open and close kept separately (paper: monthly close) |
-| `macro` | date × 16 indicators | SVM factor model, regime filters | Stored with release date, not only reference month |
-| `etf_meta` | ticker × attributes | Universe filter, portfolio rules | New: asset class, category, leverage, expense ratio, listing and delisting dates |
-| `nav` | date × ticker | Premium signals | New: NAV for premium/discount features |
-| `liquidity` | date × ticker | Universe filter, cost model | New: volume, bid-ask spread, AUM |
+| `close`, `open`, `high`, `low` | date × ticker | All strategies, backtest | Daily, adjusted for splits and dividends, open kept separately (paper: monthly close). NaN only before a fund's first bar |
+| `volume` | date × ticker | Universe filter, cost model | New: shares traded (optional) |
+| `macro` | date × 13 indicators | SVM factor model, regime filters | Indexed by the date each value became known (first release or release lag), not the reference month |
+| `meta` | ticker × attributes | Universe filter, portfolio rules | New: category, asset class, leverage, inception date |
+| `nav` | date × ticker | Premium signals | New: NAV for premium/discount features (planned) |
+| liquidity | date × ticker | Universe filter, cost model | Planned: bid-ask spread, AUM |
+
+Real data comes from `etfsys.data_sources`: yfinance prices and FRED/ALFRED macro, stored as Parquet in `data/raw` and `data/processed`, validated with pandera, and loaded by `load_market_data()`. Indicator sources, substitutes for the paper's proprietary or discontinued series, and the point-in-time rules are in `docs/data_dictionary.md`.
 
 Four rules keep backtests honest:
 
@@ -87,7 +90,7 @@ Between a strategy's target weights and a P&L sit four shared components, applie
    - Regime filter: reduce exposure when a stress series (e.g. VIX) is above a threshold.
    - Drawdown brake: cut exposure after a portfolio drawdown limit is breached.
 3. **Cost model** charges each trade a fixed rate in bps on traded notional, plus an optional spread term. Turnover is logged so results can be re-priced at any cost level.
-4. **Backtest engine** steps through rebalance dates, calls the strategy with data truncated at that date, applies steps 1 to 3, and holds weights until the next rebalance. Returns are computed from the next bar, so a signal at close t is traded at close t (monthly) or open t+1 (daily), never at a past price.
+4. **Backtest engine** steps through rebalance dates, calls the strategy with data truncated at that date, applies steps 1 to 3, and holds weights until the next rebalance. A signal at close t is traded at close t and earns returns from t+1, never at a past price. Trading at the next open is planned with the intraday legs.
 
 | Component | Input | Output |
 | --- | --- | --- |
@@ -112,11 +115,12 @@ Each run writes its config, data version, code version and metrics to a run fold
 
 ## Code skeleton
 
-The `etfsys` package implements this design end to end: 8 tests pass, and `run_example.py` runs three strategies through the shared stack in about 1 minute. It ships with synthetic data, so its numbers prove the plumbing, not any market edge.
+The `etfsys` package implements this design end to end: 21 offline tests pass, and `run_example.py` runs three strategies through the shared stack in about 1 minute on synthetic data, or on real data with `--data real`. Synthetic numbers prove the plumbing, not any market edge.
 
 ```
 etfsys/
   data.py          MarketData: point-in-time tables, truncate(t), resample(freq)
+  data_sources/    yfinance + FRED/ALFRED -> Parquet -> validated MarketData
   features.py      FactorExtractor (PCA), zigzag_labels, breakout, ema_ratio, momentum
   strategy.py      Strategy base class
   strategies/      svm_factor.py, momentum.py, buy_and_hold.py, _template.py
@@ -127,7 +131,7 @@ etfsys/
   metrics.py       CAGR, Sharpe, Sortino, max drawdown, Calmar, regime split
   tracking.py      save_run(): config, metrics and curves per run
 run_example.py
-tests/test_core.py
+tests/test_core.py, tests/test_data_sources.py
 ```
 
 The tests pin down the guarantees the design depends on: the engine never shows a strategy data after its decision date, PCA loadings come only from the training window, buy-and-hold reproduces the asset's return minus entry cost, costs scale with turnover, and a stop closes a falling position within one day of the threshold.
@@ -136,12 +140,12 @@ Adding a strategy means copying `strategies/_template.py`, filling `generate` (a
 
 ## Roadmap and open decisions
 
-The skeleton covers steps 1 to 3. Each later step adds one capability and has a clear exit test.
+Steps 1 to 4 are done. Each later step adds one capability and has a clear exit test.
 
 1. **Interface and engine** (done): `Strategy`, `Backtester`, cost model, no-look-ahead tests.
 2. **SVM plug-in** (done): Baek et al. model with train-only PCA, release lag and time-ordered CV.
 3. **Shared risk and portfolio layers** (done): vol target, stops, regime filter, drawdown brake, caps.
-4. **Real data adapter**: build `MarketData` from your Data Management output. Exit test: `validate()` passes and buy-and-hold matches the published ETF total return within 0.1% a year.
+4. **Real data adapter** (done): yfinance + FRED/ALFRED to validated `MarketData`. Exit test: `validate()` passes and SPY's adjusted close tracks the S&P 500 total return index, net of SPY's fee, within 0.1% a year.
 5. **Intraday legs**: split each day into overnight and daytime returns in the engine. Exit test: reproduce the sign of the Salotra et al. overnight result on SPY.
 6. **Momentum at scale**: survivorship-free universe of listed ETFs, liquidity filter, take-profit rule. Exit test: Sharpe and drawdown reported at 20 bps, as in Magner & Sanhueza.
 7. **RL allocator**: wrap the backtest engine as a training environment.

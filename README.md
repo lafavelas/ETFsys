@@ -7,24 +7,42 @@ strategy plugs into shared data, portfolio, risk, cost and backtest layers.
 ## Quick start
 
 ```bash
-pip install numpy pandas scikit-learn pytest
-python run_example.py     # ~1 min on synthetic data
-pytest -q                 # 8 tests: no look-ahead, costs, stops, PCA fit window
+uv pip install -e ".[dev,data]"
+uv run python run_example.py                    # ~1 min on synthetic data
+uv run pytest -q                                # offline tests: no look-ahead, costs, stops, PCA, data adapter
+```
+
+Real data (yfinance prices + FRED macro, needs `FRED_API_KEY` in `.env`, see `.env.example`):
+
+```bash
+uv run python -m etfsys.data_sources.refresh    # ~5 min: data/raw -> data/processed, validated
+uv run python run_example.py --data real        # stops before the locked 2-year holdout
+```
+
+```python
+from etfsys.data_sources import load_market_data
+data = load_market_data()        # MarketData: OHLCV, release-dated macro, meta with inception
 ```
 
 `run_example.py` runs three strategies through the same stack and prints net metrics,
 cost sensitivity (0–50 bps), every SVM walk-forward refit, and a calm/stress regime split.
 Each run is saved under `runs/<timestamp>_<name>/` (`run.json`, `equity.csv`, `weights.csv`).
 
-**The data is synthetic.** Results show the plumbing works; they say nothing about real
-markets. Replace `make_synthetic_data()` with a `MarketData` built from your Data
-Gathering / Data Management modules.
+**Synthetic results** show the plumbing works; they say nothing about real markets. The
+real data adapter and its point-in-time rules are described in `docs/data_dictionary.md`.
 
 ## Layout
 
 ```
 etfsys/
   data.py          MarketData: point-in-time tables, truncate(t), resample(freq), validation
+  data_sources/
+    config.py      ETF universe and macro indicators (FRED ids, point-in-time method, lags)
+    prices.py      yfinance download, adjusted OHLCV, bar cleaning
+    fred.py        FRED/ALFRED client, first-release dating, release lags, wide macro table
+    schemas.py     pandera contracts for raw and processed tables
+    build.py       load_market_data(), load_reference(), tracking_gap()
+    refresh.py     CLI: download -> data/raw -> data/processed -> summary
   features.py      FactorExtractor (PCA), zigzag_labels, breakout_signals, ema_ratio, momentum_score
   strategy.py      Strategy base class: fit(data, train_end) / generate(data, t) -> target weights
   strategies/
@@ -40,7 +58,7 @@ etfsys/
   metrics.py       CAGR, vol, Sharpe, Sortino, max DD, Calmar, regime split
   tracking.py      save_run(): config + metrics + curves per run
 run_example.py
-tests/test_core.py
+tests/test_core.py, tests/test_data_sources.py
 ```
 
 ## What changed vs. the paper's ML Analytic Module
@@ -67,6 +85,10 @@ result = bt.run(MyStrategy())
 ```
 
 ## Known limits
+
+- yfinance is not survivorship-free: fine for the 12 fixed ETFs here, biased for broad-universe studies.
+- Macro history from before ALFRED archiving (mostly pre-2011) uses the earliest archived
+  vintage: dates are conservative, values include early revisions. See `docs/data_dictionary.md`.
 
 - Trades fill at the close of the decision day; no slippage beyond the cost model.
 - Intraday (overnight/daytime) strategies need open-to-close legs in the engine: planned.

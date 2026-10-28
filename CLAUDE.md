@@ -49,7 +49,7 @@ backtest layers. Research only: no live trading, no broker connections.
 - Storage: Parquet in `data/raw/` (as downloaded) and `data/processed/` (cleaned).
   `data/` is gitignored. Query with DuckDB if needed.
 - Validate every loaded table with the pandera schemas in `etfsys/data_sources/schemas.py`.
-- Sources: prices from yfinance (adjusted close, OHLC); macro from FRED via fredapi, using
+- Sources: prices from yfinance (adjusted close, OHLC); macro from the FRED REST API (`etfsys/data_sources/fred.py`; fredapi cannot return release dates), using
   ALFRED vintages for point-in-time values. API keys come from `.env` (`FRED_API_KEY`);
   never hard-code or print keys.
 - Known gaps vs. the paper: Goldman Sachs FCI, Bloomberg FCI and the Conference Board
@@ -78,10 +78,11 @@ backtest layers. Research only: no live trading, no broker connections.
 ## Status and roadmap
 
 Done: Strategy interface, backtest engine, cost model, risk overlay, portfolio builder,
-SVM factor plug-in, momentum plug-in, buy-and-hold benchmark, synthetic data, 8 tests.
+SVM factor plug-in, momentum plug-in, buy-and-hold benchmark, synthetic data, phase 1 real
+data adapter (`etfsys/data_sources`, `docs/data_dictionary.md`), 21 offline tests.
 
 Next (in order, one phase at a time):
-1. Real data adapter: yfinance + FRED -> Parquet -> validated `MarketData`; data dictionary.
+1. ~~Real data adapter: yfinance + FRED -> Parquet -> validated `MarketData`; data dictionary.~~ Done.
 2. Validation protocol in code: locked holdout, regime report, trial counter per study.
 3. Intraday legs in the engine (open/close) + overnight/daytime plug-in (Salotra et al. 2026).
 4. Momentum at scale: universe and liquidity filters, take-profit rule (Magner & Sanhueza 2026).
