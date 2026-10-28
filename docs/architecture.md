@@ -105,17 +105,24 @@ Every strategy is judged by the same protocol, replacing the paper's single 60/4
 
 - **Walk-forward.** Refit on an expanding window every 12 months; trade the following 12 months out of sample.
 - **Time-ordered tuning.** Hyperparameters are tuned with `TimeSeriesSplit` inside each training window only.
-- **Locked holdout.** The last 2 years are never used for tuning or design choices and are run once at the end.
+- **Locked holdout.** The last 2 years are never used for tuning or design choices and are run once at the end. The start date is pinned in `data_sources/config.py` (`HOLDOUT_START = 2024-10-29`), so a data refresh cannot move it. `load_market_data()` drops every row on or after it, macro included by release date. `Backtester` raises `HoldoutError` on any run that reaches it unless `BacktestConfig(final_holdout_run=True)`, and `run.json` records `holdout_touched`.
 - **Cost sensitivity.** Every report shows results at 0, 5, 10, 20 and 50 bps per trade.
-- **Common benchmark.** Buy-and-hold SPY, and buy-and-hold of the strategy's own universe.
-- **Regime split.** Metrics by VIX regime (below and above 25) and for named crises (2008, 2020, 2022).
-- **Trial count.** The number of configurations tried is logged, so a high Sharpe can be weighed against how hard it was searched for.
+- **Common benchmark.** Buy-and-hold SPY; `validation_report` refuses to build without it. Buy-and-hold of the strategy's own universe is planned.
+- **Regime split.** Metrics by VIX regime (below and above 25) and for named crises (2008, 2020, 2022). The regime of a day's return comes from the VIX known at the previous close, so the split uses no later data. A crisis the run only partly covers is shown with its covered dates.
+- **Trial count.** `Study` logs every configuration tried to `runs/studies/<name>.jsonl` (append-only; identical configs count once). The report shows the trial count and the deflated Sharpe ratio (Bailey & López de Prado 2014): the probability that the Sharpe beats the best a skill-less search over that many trials would reach by luck.
 
-Each run writes its config, data version, code version and metrics to a run folder (a JSON record in the skeleton; MLflow later). Metrics: CAGR, annual volatility, Sharpe, Sortino, max drawdown, Calmar, hit rate, turnover and cost drag.
+Each run writes its config, data version, code version, holdout status and metrics to a run folder (a JSON record in the skeleton; MLflow later). Metrics: CAGR, annual volatility, Sharpe, Sortino, max drawdown, Calmar, hit rate, turnover and cost drag.
+
+| Code | Role |
+| --- | --- |
+| `MarketData.lock_holdout`, `HoldoutError` | Holdout kept out of memory and out of the engine |
+| `validation.py` | `vix_regime`, `regime_table`, `crisis_table`, `deflated_sharpe` |
+| `study.py` | `Study`: trial log, `n_trials`, deflated Sharpe against the study's trials |
+| `report.py` | `validation_report` / `format_report`: all of the above in one standard report |
 
 ## Code skeleton
 
-The `etfsys` package implements this design end to end: 21 offline tests pass, and `run_example.py` runs three strategies through the shared stack in about 1 minute on synthetic data, or on real data with `--data real`. Synthetic numbers prove the plumbing, not any market edge.
+The `etfsys` package implements this design end to end: 30 offline tests pass, and `run_example.py` runs three strategies through the shared stack in about 1 minute on synthetic data, or on real data with `--data real`. Synthetic numbers prove the plumbing, not any market edge.
 
 ```
 etfsys/
@@ -130,8 +137,11 @@ etfsys/
   backtest.py      Backtester, walk-forward refits, BacktestResult
   metrics.py       CAGR, Sharpe, Sortino, max drawdown, Calmar, regime split
   tracking.py      save_run(): config, metrics and curves per run
+  validation.py    VIX regimes, crisis windows, deflated Sharpe
+  study.py         Study: append-only trial log per research question
+  report.py        validation_report(): the standard report (rule 5)
 run_example.py
-tests/test_core.py, tests/test_data_sources.py
+tests/test_core.py, tests/test_data_sources.py, tests/test_validation.py
 ```
 
 The tests pin down the guarantees the design depends on: the engine never shows a strategy data after its decision date, PCA loadings come only from the training window, buy-and-hold reproduces the asset's return minus entry cost, costs scale with turnover, and a stop closes a falling position within one day of the threshold.
@@ -140,16 +150,17 @@ Adding a strategy means copying `strategies/_template.py`, filling `generate` (a
 
 ## Roadmap and open decisions
 
-Steps 1 to 4 are done. Each later step adds one capability and has a clear exit test.
+Steps 1 to 5 are done. Each later step adds one capability and has a clear exit test.
 
 1. **Interface and engine** (done): `Strategy`, `Backtester`, cost model, no-look-ahead tests.
 2. **SVM plug-in** (done): Baek et al. model with train-only PCA, release lag and time-ordered CV.
 3. **Shared risk and portfolio layers** (done): vol target, stops, regime filter, drawdown brake, caps.
 4. **Real data adapter** (done): yfinance + FRED/ALFRED to validated `MarketData`. Exit test: `validate()` passes and SPY's adjusted close tracks the S&P 500 total return index, net of SPY's fee, within 0.1% a year.
-5. **Intraday legs**: split each day into overnight and daytime returns in the engine. Exit test: reproduce the sign of the Salotra et al. overnight result on SPY.
-6. **Momentum at scale**: survivorship-free universe of listed ETFs, liquidity filter, take-profit rule. Exit test: Sharpe and drawdown reported at 20 bps, as in Magner & Sanhueza.
-7. **RL allocator**: wrap the backtest engine as a training environment.
-8. **Tracking and combiner**: MLflow runs, then a strategy blender with its own walk-forward weights.
+5. **Validation protocol in code** (done): locked holdout, regime and crisis report, trial counter with deflated Sharpe.
+6. **Intraday legs**: split each day into overnight and daytime returns in the engine. Exit test: reproduce the sign of the Salotra et al. overnight result on SPY.
+7. **Momentum at scale**: survivorship-free universe of listed ETFs, liquidity filter, take-profit rule. Exit test: Sharpe and drawdown reported at 20 bps, as in Magner & Sanhueza.
+8. **RL allocator**: wrap the backtest engine as a training environment.
+9. **Tracking and combiner**: MLflow runs, then a strategy blender with its own walk-forward weights.
 
 | Decision | Options | Default in skeleton |
 | --- | --- | --- |
@@ -157,7 +168,7 @@ Steps 1 to 4 are done. Each later step adds one capability and has a clear exit 
 | SVM target asset | Labels from the S&P 500 for all ETFs, or labels per ETF | Same ticker as traded |
 | Short selling | Long/cash, or long/short | Long/cash |
 | Refit cadence | 12 months expanding, or rolling window | 12 months expanding |
-| Holdout | Last 2 years locked, or none | Not yet enforced in code |
+| Holdout | Last 2 years locked, or none | Locked from 2024-10-29, enforced in loader and engine |
 
 ### Sources
 

@@ -79,11 +79,12 @@ backtest layers. Research only: no live trading, no broker connections.
 
 Done: Strategy interface, backtest engine, cost model, risk overlay, portfolio builder,
 SVM factor plug-in, momentum plug-in, buy-and-hold benchmark, synthetic data, phase 1 real
-data adapter (`etfsys/data_sources`, `docs/data_dictionary.md`), 21 offline tests.
+data adapter (`etfsys/data_sources`, `docs/data_dictionary.md`), phase 2 validation protocol
+(locked holdout from 2024-10-29, `validation.py`, `study.py`, `report.py`), 30 offline tests.
 
 Next (in order, one phase at a time):
 1. ~~Real data adapter: yfinance + FRED -> Parquet -> validated `MarketData`; data dictionary.~~ Done.
-2. Validation protocol in code: locked holdout, regime report, trial counter per study.
+2. ~~Validation protocol in code: locked holdout, regime report, trial counter per study.~~ Done.
 3. Intraday legs in the engine (open/close) + overnight/daytime plug-in (Salotra et al. 2026).
 4. Momentum at scale: universe and liquidity filters, take-profit rule (Magner & Sanhueza 2026).
 5. Experiment tracking with MLflow; HTML report per run.

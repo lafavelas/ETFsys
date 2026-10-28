@@ -9,14 +9,14 @@ strategy plugs into shared data, portfolio, risk, cost and backtest layers.
 ```bash
 uv pip install -e ".[dev,data]"
 uv run python run_example.py                    # ~1 min on synthetic data
-uv run pytest -q                                # offline tests: no look-ahead, costs, stops, PCA, data adapter
+uv run pytest -q                                # offline tests: no look-ahead, costs, stops, PCA, data, holdout
 ```
 
 Real data (yfinance prices + FRED macro, needs `FRED_API_KEY` in `.env`, see `.env.example`):
 
 ```bash
 uv run python -m etfsys.data_sources.refresh    # ~5 min: data/raw -> data/processed, validated
-uv run python run_example.py --data real        # stops before the locked 2-year holdout
+uv run python run_example.py --data real        # stops before the locked holdout (2024-10-29)
 ```
 
 ```python
@@ -57,9 +57,12 @@ etfsys/
   costs.py         CostModel (commission + half spread, per unit turnover)
   backtest.py      Backtester: daily clock, walk-forward refits, BacktestResult
   metrics.py       CAGR, vol, Sharpe, Sortino, max DD, Calmar, regime split
-  tracking.py      save_run(): config + metrics + curves per run
+  tracking.py      save_run(): config + metrics + curves per run (+ trial in a Study)
+  validation.py    VIX regimes, crisis windows, deflated Sharpe
+  study.py         Study: append-only trial log per research question (runs/studies/)
+  report.py        validation_report(): metrics, cost table, SPY benchmark, regimes, trials
 run_example.py
-tests/test_core.py, tests/test_data_sources.py
+tests/test_core.py, tests/test_data_sources.py, tests/test_validation.py
 ```
 
 ## What changed vs. the paper's ML Analytic Module
@@ -72,6 +75,31 @@ tests/test_core.py, tests/test_data_sources.py
 | Raw EMA level | `close / EMA − 1` | Scale-free input for an RBF kernel |
 | One 60/40 split | Walk-forward refit every 12 months | Tests stability of the model over time |
 | Signal goes straight to trade | Portfolio → risk overlay → cost model | Shared by every strategy |
+
+## Validation protocol
+
+Every reported result goes through the same checks (CLAUDE.md rules 5 and 6):
+
+```python
+from etfsys.report import format_report, validation_report
+from etfsys.study import Study
+
+study = Study("svm_gamma_grid")  # one per research question
+for params in grid:
+    strategy = SVMFactorStrategy(**params)
+    res = bt.run(strategy)
+    save_run(res, strategy, bt, study=study)  # each distinct config = one trial
+print(format_report(validation_report({"buy_hold_SPY": bench, res.name: res}, data, study=study)))
+```
+
+- **Locked holdout.** `load_market_data()` stops before `HOLDOUT_START` (pinned in
+  `data_sources/config.py`). A run that reaches it raises `HoldoutError` unless it is the
+  final run: `load_market_data(unlock_holdout=True)` plus `BacktestConfig(final_holdout_run=True)`.
+- **Report.** Net metrics, cost sensitivity at 0-50 bps, the buy-and-hold SPY benchmark
+  (required), VIX regimes (VIX known at the previous close, threshold 25), crisis windows
+  (2008, 2020, 2022), and the trial count with the deflated Sharpe ratio.
+- **Deflated Sharpe.** The probability that the Sharpe beats the best result a skill-less
+  search over the study's trials would reach by luck. Below 0.95, treat the edge as unproven.
 
 ## Adding a strategy
 
