@@ -1,0 +1,14 @@
+# data and run outputs
+data/
+runs/
+mlruns/
+# secrets
+.env
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+.ipynb_checkpoints/
