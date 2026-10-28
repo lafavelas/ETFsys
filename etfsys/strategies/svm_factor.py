@@ -9,6 +9,7 @@ Paper -> plug-in mapping
 Fixes vs. the paper: PCA fit on training data only; macro used with a release lag;
 time-ordered CV; C tuned alongside gamma; scale-free EMA feature.
 """
+
 from __future__ import annotations
 
 import warnings
@@ -83,7 +84,9 @@ class SVMFactorStrategy(Strategy):
             return
         self._factors = FactorExtractor(self.n_components).fit(macro)
         X = self._features(m)
-        y = zigzag_labels(m.close[self.label_ticker], self.label_threshold).shift(-1)  # target = label at t+1
+        y = zigzag_labels(m.close[self.label_ticker], self.label_threshold).shift(
+            -1
+        )  # target = label at t+1
         df = X.join(y.rename("y")).dropna()
         X_train, y_train = df.drop(columns="y"), df["y"].astype(int)
 
@@ -106,7 +109,7 @@ class SVMFactorStrategy(Strategy):
         cv = pd.DataFrame(search.cv_results_)
         self._diag = {
             "train_end": str(pd.Timestamp(train_end).date()),
-            "n_train": int(len(y_train)),
+            "n_train": len(y_train),
             "share_up_labels": round(float((y_train == 1).mean()), 3),
             "best_params": {k: float(v) for k, v in search.best_params_.items()},
             "cv_balanced_accuracy": round(float(search.best_score_), 3),

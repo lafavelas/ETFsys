@@ -1,4 +1,5 @@
 """Portfolio construction: strategy intent -> valid, constrained weights."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -11,11 +12,11 @@ from .context import Context
 
 @dataclass
 class PortfolioConstructor:
-    max_gross: float = 1.0      # sum of |w|; 1.0 = no leverage
-    max_weight: float = 1.0     # cap per position
+    max_gross: float = 1.0  # sum of |w|; 1.0 = no leverage
+    max_weight: float = 1.0  # cap per position
     long_only: bool = True
-    inverse_vol: bool = False   # rescale picks by 1/vol, keeping the strategy's gross
-    vol_window: int = 63        # trading days
+    inverse_vol: bool = False  # rescale picks by 1/vol, keeping the strategy's gross
+    vol_window: int = 63  # trading days
 
     def apply(self, target: pd.Series, ctx: Context) -> pd.Series:
         w = target.reindex(ctx.tickers).fillna(0.0).astype(float)

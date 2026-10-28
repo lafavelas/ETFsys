@@ -1,4 +1,5 @@
 """Performance metrics computed from daily net returns."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -16,7 +17,9 @@ def max_drawdown(returns: pd.Series) -> float:
     return float((eq / eq.cummax() - 1).min())
 
 
-def summarize(returns: pd.Series, turnover: pd.Series | None = None, costs: pd.Series | None = None) -> dict:
+def summarize(
+    returns: pd.Series, turnover: pd.Series | None = None, costs: pd.Series | None = None
+) -> dict:
     r = returns.dropna()
     if r.empty:
         return {}

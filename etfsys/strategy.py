@@ -1,4 +1,5 @@
 """The one contract every strategy plug-in implements."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -30,7 +31,7 @@ class Strategy(ABC):
         if missing:
             raise ValueError(f"{self.name} needs data tables {missing}")
 
-    def fit(self, data: MarketData, train_end: pd.Timestamp) -> None:  # noqa: B027
+    def fit(self, data: MarketData, train_end: pd.Timestamp) -> None:
         """Optional training step. Default: nothing to learn."""
 
     @abstractmethod

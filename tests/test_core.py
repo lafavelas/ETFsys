@@ -1,11 +1,19 @@
 """Core guarantees of the framework. Run with: pytest -q"""
+
 import numpy as np
 import pandas as pd
 import pytest
 
 from etfsys import (
-    Backtester, BacktestConfig, CostModel, MarketData, PortfolioConstructor,
-    RiskOverlay, StopLossTakeProfit, Strategy, make_synthetic_data,
+    BacktestConfig,
+    Backtester,
+    CostModel,
+    MarketData,
+    PortfolioConstructor,
+    RiskOverlay,
+    StopLossTakeProfit,
+    Strategy,
+    make_synthetic_data,
 )
 from etfsys.features import FactorExtractor, zigzag_labels
 from etfsys.strategies import BuyAndHold
@@ -19,9 +27,9 @@ def data():
 def test_zigzag_marks_up_and_down_segments():
     p = pd.Series([100, 102, 105, 108, 104, 100, 97, 99, 103, 107])
     lab = zigzag_labels(p, threshold=0.03)
-    assert list(lab.iloc[1:4]) == [1, 1, 1]      # rise to 108
-    assert list(lab.iloc[4:7]) == [-1, -1, -1]   # fall to 97
-    assert list(lab.iloc[7:]) == [1, 1, 1]       # rise again
+    assert list(lab.iloc[1:4]) == [1, 1, 1]  # rise to 108
+    assert list(lab.iloc[4:7]) == [-1, -1, -1]  # fall to 97
+    assert list(lab.iloc[7:]) == [1, 1, 1]  # rise again
 
 
 def test_truncate_hides_the_future(data):
@@ -33,6 +41,7 @@ def test_truncate_hides_the_future(data):
 
 class _Spy(Strategy):
     """Records the latest date it was ever shown; must never exceed t."""
+
     frequency = "W"
     name = "spy_on_dates"
 
@@ -77,7 +86,9 @@ def test_stop_loss_closes_a_falling_position():
     close = pd.DataFrame({"X": falling})
     md = MarketData(close=close).validate()
     risk = RiskOverlay([StopLossTakeProfit(stop=0.05)])
-    res = Backtester(md, BacktestConfig(start=str(idx[0].date())), risk=risk).run(BuyAndHold({"X": 1.0}))
+    res = Backtester(md, BacktestConfig(start=str(idx[0].date())), risk=risk).run(
+        BuyAndHold({"X": 1.0})
+    )
     w = res.weights["X"]
     entry = w.gt(0).idxmax()
     stopped = w.loc[entry:].eq(0).idxmax()
@@ -99,6 +110,11 @@ def test_portfolio_caps_gross_and_shorts():
     idx = pd.bdate_range("2020-01-01", periods=5)
     md = MarketData(close=pd.DataFrame({"A": 1.0, "B": 1.0}, index=idx))
     from etfsys import Context
-    ctx = Context(t=idx[-1], data=md, weights=pd.Series(0.0, index=["A", "B"]), equity=1, peak_equity=1)
-    w = PortfolioConstructor(max_gross=1.0, long_only=True).apply(pd.Series({"A": 1.5, "B": -0.5}), ctx)
+
+    ctx = Context(
+        t=idx[-1], data=md, weights=pd.Series(0.0, index=["A", "B"]), equity=1, peak_equity=1
+    )
+    w = PortfolioConstructor(max_gross=1.0, long_only=True).apply(
+        pd.Series({"A": 1.5, "B": -0.5}), ctx
+    )
     assert w["B"] == 0 and w.abs().sum() == pytest.approx(1.0)

@@ -58,8 +58,8 @@ Every strategy implements three members and nothing else. The backtest engine ca
 ```python
 class Strategy(ABC):
     name: str
-    frequency: str              # "D", "W", "M"
-    required_data: tuple        # e.g. ("ohlc", "macro")
+    frequency: str  # "D", "W", "M"
+    required_data: tuple  # e.g. ("ohlc", "macro")
 
     def fit(self, data: MarketData, train_end: pd.Timestamp) -> None: ...
     def generate(self, data: MarketData, t: pd.Timestamp) -> pd.Series:

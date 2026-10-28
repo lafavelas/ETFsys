@@ -9,6 +9,7 @@ Daily clock. On each day:
 Decisions at close t therefore earn returns from t+1 on. No future data reaches the
 strategy: it only ever sees `data.truncate(t)`.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -34,20 +35,20 @@ def rebalance_dates(index: pd.DatetimeIndex, freq: str) -> pd.DatetimeIndex:
 
 @dataclass
 class BacktestConfig:
-    start: str                          # first out-of-sample trading date
+    start: str  # first out-of-sample trading date
     end: str | None = None
-    refit_every_months: int = 12        # walk-forward refit, expanding window
+    refit_every_months: int = 12  # walk-forward refit, expanding window
     cost: CostModel = field(default_factory=CostModel)
 
 
 @dataclass
 class BacktestResult:
     name: str
-    returns: pd.Series                  # daily net returns
-    gross_returns: pd.Series            # before costs
-    turnover: pd.Series                 # sum |dw| traded each day
-    costs: pd.Series                    # cost paid each day (fraction of equity)
-    weights: pd.DataFrame               # end-of-day weights after trading
+    returns: pd.Series  # daily net returns
+    gross_returns: pd.Series  # before costs
+    turnover: pd.Series  # sum |dw| traded each day
+    costs: pd.Series  # cost paid each day (fraction of equity)
+    weights: pd.DataFrame  # end-of-day weights after trading
     fit_log: list = field(default_factory=list)
     trades: list = field(default_factory=list)
 
@@ -109,7 +110,9 @@ class Backtester:
                 peak = max(peak, equity)
 
             new_w = w
-            ctx = Context(t=t, data=self.data, weights=w, equity=equity, peak_equity=peak, entry_price=entry)
+            ctx = Context(
+                t=t, data=self.data, weights=w, equity=equity, peak_equity=peak, entry_price=entry
+            )
 
             # 2. daily rules (stops)
             if self.risk.has_daily:
@@ -127,7 +130,9 @@ class Backtester:
                     if diag:
                         fit_log.append(diag)
                     if verbose:
-                        print(f"[{strategy.name}] refit at {t.date()} {diag.get('cv_balanced_accuracy', '')}")
+                        print(
+                            f"[{strategy.name}] refit at {t.date()} {diag.get('cv_balanced_accuracy', '')}"
+                        )
                 target = strategy.generate(self.data.truncate(t), t)
                 new_w = self.portfolio.apply(target, ctx)
                 new_w = self.risk.apply(new_w, ctx)

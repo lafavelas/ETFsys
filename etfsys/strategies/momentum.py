@@ -5,6 +5,7 @@ an average of several lookbacks, hold the top N with at most `max_per_category`
 funds from one category, equal weight. Exits (stop-loss / take-profit) are NOT coded
 here: they live in the shared risk overlay, so any strategy can use them.
 """
+
 from __future__ import annotations
 
 import pandas as pd
@@ -42,7 +43,9 @@ class MultiHorizonMomentum(Strategy):
         if len(weekly) <= max(self.horizons):
             return pd.Series(dtype=float)
         score = momentum_score(weekly, self.horizons).iloc[-1].dropna()
-        score = score[score > self.min_score].sort_values(ascending=False)  # absolute filter: cash if nothing trends up
+        score = score[score > self.min_score].sort_values(
+            ascending=False
+        )  # absolute filter: cash if nothing trends up
 
         picks, per_cat = [], {}
         for tk in score.index:

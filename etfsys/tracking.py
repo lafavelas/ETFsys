@@ -2,6 +2,7 @@
 
 Swap for MLflow later; the fields to log stay the same.
 """
+
 from __future__ import annotations
 
 import json
@@ -29,12 +30,24 @@ def _clean(o):
 
 def _git_rev() -> str | None:
     try:
-        return subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.DEVNULL).decode().strip()
-    except Exception:
+        return (
+            subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.DEVNULL
+            )
+            .decode()
+            .strip()
+        )
+    except (OSError, subprocess.CalledProcessError):  # no git, or not a repo
         return None
 
 
-def save_run(result: BacktestResult, strategy: Strategy, bt: Backtester, root: str = "runs", data_version: str = "synthetic") -> Path:
+def save_run(
+    result: BacktestResult,
+    strategy: Strategy,
+    bt: Backtester,
+    root: str = "runs",
+    data_version: str = "synthetic",
+) -> Path:
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     path = Path(root) / f"{stamp}_{result.name}"
     path.mkdir(parents=True, exist_ok=True)

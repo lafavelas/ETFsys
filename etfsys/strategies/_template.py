@@ -8,6 +8,7 @@ Checklist
   4. Expose hyperparameters as __init__ args so `params()` logs them with each run.
   5. Add it to strategies/__init__.py and run it through run_example.py.
 """
+
 from __future__ import annotations
 
 import pandas as pd
@@ -33,4 +34,6 @@ class MyStrategy(Strategy):
             return pd.Series(dtype=float)
         trend = weekly.iloc[-1] / weekly.iloc[-1 - self.lookback] - 1
         winners = trend[trend > 0].index
-        return pd.Series(1.0 / len(winners), index=winners) if len(winners) else pd.Series(dtype=float)
+        return (
+            pd.Series(1.0 / len(winners), index=winners) if len(winners) else pd.Series(dtype=float)
+        )

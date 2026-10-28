@@ -21,7 +21,8 @@ uv run python run_example.py --data real        # stops before the locked 2-year
 
 ```python
 from etfsys.data_sources import load_market_data
-data = load_market_data()        # MarketData: OHLCV, release-dated macro, meta with inception
+
+data = load_market_data()  # MarketData: OHLCV, release-dated macro, meta with inception
 ```
 
 `run_example.py` runs three strategies through the same stack and prints net metrics,
@@ -78,9 +79,12 @@ Copy `strategies/_template.py`. Implement `generate` (and `fit` if it learns). E
 sizing limits and costs come from the shared layers, configured per run:
 
 ```python
-bt = Backtester(data, BacktestConfig(start="2010-01-01", cost=CostModel(5, 2)),
-                portfolio=PortfolioConstructor(long_only=True, max_weight=0.3),
-                risk=RiskOverlay([StopLossTakeProfit(stop=0.08), VolTarget(0.10)]))
+bt = Backtester(
+    data,
+    BacktestConfig(start="2010-01-01", cost=CostModel(5, 2)),
+    portfolio=PortfolioConstructor(long_only=True, max_weight=0.3),
+    risk=RiskOverlay([StopLossTakeProfit(stop=0.08), VolTarget(0.10)]),
+)
 result = bt.run(MyStrategy())
 ```
 

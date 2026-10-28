@@ -1,4 +1,5 @@
 """Benchmark plug-in: hold fixed weights. Every report compares against it."""
+
 from __future__ import annotations
 
 import pandas as pd

@@ -4,6 +4,7 @@ Everything here is a pure function or a fit/transform object, so any strategy ca
 reuse it. The paper's ML Analytic Module (PCA factors, breakout labels, EMA) lives
 here instead of inside one model.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -29,7 +30,7 @@ class FactorExtractor:
         self._signs: np.ndarray | None = None
         self.columns: list[str] | None = None
 
-    def fit(self, X: pd.DataFrame) -> "FactorExtractor":
+    def fit(self, X: pd.DataFrame) -> FactorExtractor:
         self.columns = list(X.columns)
         Z = self.scaler.fit_transform(X.values)
         self.pca.fit(Z)
@@ -109,5 +110,7 @@ def momentum_score(close: pd.DataFrame, horizons=(4, 12, 26)) -> pd.DataFrame:
     return sum(parts) / len(parts)
 
 
-def realized_vol(returns: pd.DataFrame, window: int = 63, periods_per_year: int = 252) -> pd.DataFrame:
+def realized_vol(
+    returns: pd.DataFrame, window: int = 63, periods_per_year: int = 252
+) -> pd.DataFrame:
     return returns.rolling(window, min_periods=window // 2).std() * np.sqrt(periods_per_year)

@@ -1,4 +1,5 @@
 """State handed to portfolio construction and risk rules on each date."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -12,9 +13,9 @@ from .data import MarketData
 @dataclass
 class Context:
     t: pd.Timestamp
-    data: MarketData                 # FULL data; use the truncated views below
-    weights: pd.Series               # current (drifted) weights before today's trade
-    equity: float                    # portfolio value before today's trade
+    data: MarketData  # FULL data; use the truncated views below
+    weights: pd.Series  # current (drifted) weights before today's trade
+    equity: float  # portfolio value before today's trade
     peak_equity: float
     entry_price: dict = field(default_factory=dict)  # ticker -> price when position opened
 

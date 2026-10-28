@@ -4,10 +4,10 @@ Strategies never read raw sources. They receive a `MarketData` already truncated
 at the decision date by the backtest engine, so look-ahead is impossible by
 construction (as long as tables are indexed by the date the value became known).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -43,17 +43,17 @@ class MarketData:
     """
 
     close: pd.DataFrame
-    open: Optional[pd.DataFrame] = None
-    high: Optional[pd.DataFrame] = None
-    low: Optional[pd.DataFrame] = None
-    volume: Optional[pd.DataFrame] = None
-    macro: Optional[pd.DataFrame] = None
-    meta: Optional[pd.DataFrame] = None
-    nav: Optional[pd.DataFrame] = None
-    as_of: Optional[pd.Timestamp] = field(default=None)
+    open: pd.DataFrame | None = None
+    high: pd.DataFrame | None = None
+    low: pd.DataFrame | None = None
+    volume: pd.DataFrame | None = None
+    macro: pd.DataFrame | None = None
+    meta: pd.DataFrame | None = None
+    nav: pd.DataFrame | None = None
+    as_of: pd.Timestamp | None = field(default=None)
 
     # ------------------------------------------------------------------ checks
-    def validate(self) -> "MarketData":
+    def validate(self) -> MarketData:
         if not isinstance(self.close.index, pd.DatetimeIndex):
             raise TypeError("close must have a DatetimeIndex")
         if not self.close.index.is_monotonic_increasing:
@@ -74,7 +74,11 @@ class MarketData:
                     raise ValueError(f"{name} tickers differ from close: {sorted(missing)}")
         if self.macro is not None:
             idx = self.macro.index
-            if not isinstance(idx, pd.DatetimeIndex) or not idx.is_monotonic_increasing or idx.has_duplicates:
+            if (
+                not isinstance(idx, pd.DatetimeIndex)
+                or not idx.is_monotonic_increasing
+                or idx.has_duplicates
+            ):
                 raise ValueError("macro needs a sorted, unique DatetimeIndex of release dates")
         if self.meta is not None:
             unknown = set(self.close.columns) - set(self.meta.index)
@@ -90,7 +94,7 @@ class MarketData:
         return list(self.close.columns)
 
     # ------------------------------------------------------- point-in-time ops
-    def truncate(self, t: pd.Timestamp) -> "MarketData":
+    def truncate(self, t: pd.Timestamp) -> MarketData:
         """Everything known at the close of date t, and nothing after."""
         t = pd.Timestamp(t)
 
@@ -109,7 +113,7 @@ class MarketData:
             as_of=t,
         )
 
-    def resample(self, freq: str) -> "MarketData":
+    def resample(self, freq: str) -> MarketData:
         """Weekly/monthly view. Macro is forward-filled onto the price calendar first."""
         if freq == "D":
             return self
@@ -185,7 +189,9 @@ def make_synthetic_data(start="2002-01-01", end="2025-12-31", seed=7) -> MarketD
     prev = close.shift(1).fillna(close.iloc[0])
     open_ = prev * (1 + gap * rets)
     span = (close - open_).abs()
-    noise = pd.DataFrame(np.abs(rng.standard_normal(close.shape)), index=dates, columns=close.columns)
+    noise = pd.DataFrame(
+        np.abs(rng.standard_normal(close.shape)), index=dates, columns=close.columns
+    )
     high = pd.concat([open_, close]).groupby(level=0).max() + span * 0.3 * noise
     low = pd.concat([open_, close]).groupby(level=0).min() - span * 0.3 * noise
 
@@ -194,9 +200,22 @@ def make_synthetic_data(start="2002-01-01", end="2025-12-31", seed=7) -> MarketD
     smooth = month_end.ewm(alpha=0.6).mean().values
     m = len(month_end)
     names = [
-        "lead_credit", "gs_fci", "bbg_fci", "cfnai", "nfci", "kc_stress",
-        "ted", "libor_ois", "cp_tbill", "baa_tsy", "hy_oas", "muni_tsy",
-        "vix", "vxo", "vxn", "vxd",
+        "lead_credit",
+        "gs_fci",
+        "bbg_fci",
+        "cfnai",
+        "nfci",
+        "kc_stress",
+        "ted",
+        "libor_ois",
+        "cp_tbill",
+        "baa_tsy",
+        "hy_oas",
+        "muni_tsy",
+        "vix",
+        "vxo",
+        "vxn",
+        "vxd",
     ]
     sign = {"bbg_fci": -1, "cfnai": -1, "nfci": -1}
     macro = {}
@@ -207,4 +226,6 @@ def make_synthetic_data(start="2002-01-01", end="2025-12-31", seed=7) -> MarketD
     macro = pd.DataFrame(macro, index=month_end.index)
 
     meta = pd.DataFrame(meta_rows).set_index("ticker")
-    return MarketData(close=close, open=open_, high=high, low=low, macro=macro, meta=meta).validate()
+    return MarketData(
+        close=close, open=open_, high=high, low=low, macro=macro, meta=meta
+    ).validate()

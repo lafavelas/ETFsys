@@ -3,6 +3,7 @@
 Rules with `daily = True` are checked every trading day (stops); the others only on
 rebalance dates. Any strategy gets any rule without changing its own code.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -63,7 +64,9 @@ class StopLossTakeProfit(RiskRule):
             if w.get(tk, 0.0) == 0.0:
                 continue
             move = np.sign(w[tk]) * (price[tk] / entry - 1.0)
-            if (self.stop is not None and move <= -self.stop) or (self.take is not None and move >= self.take):
+            if (self.stop is not None and move <= -self.stop) or (
+                self.take is not None and move >= self.take
+            ):
                 w[tk] = 0.0
         return w
 
@@ -76,10 +79,10 @@ class RegimeFilter(RiskRule):
     series' own history up to t (no look-ahead).
     """
 
-    series: str = "vix"            # a macro column
+    series: str = "vix"  # a macro column
     threshold: float | None = None
     quantile: float = 0.8
-    scale: float = 0.0             # 0 = go to cash, 0.5 = halve exposure
+    scale: float = 0.0  # 0 = go to cash, 0.5 = halve exposure
     min_history: int = 36
     name: str = "regime_filter"
 
@@ -88,7 +91,9 @@ class RegimeFilter(RiskRule):
         if macro is None or self.series not in macro or len(macro) < self.min_history:
             return w
         s = macro[self.series].dropna()
-        level = self.threshold if self.threshold is not None else s.iloc[:-1].quantile(self.quantile)
+        level = (
+            self.threshold if self.threshold is not None else s.iloc[:-1].quantile(self.quantile)
+        )
         return w * self.scale if s.iloc[-1] > level else w
 
 
@@ -120,4 +125,7 @@ class RiskOverlay:
         return any(r.daily for r in self.rules)
 
     def describe(self) -> list[dict]:
-        return [{"rule": r.name, **{k: v for k, v in vars(r).items() if k != "name"}} for r in self.rules]
+        return [
+            {"rule": r.name, **{k: v for k, v in vars(r).items() if k != "name"}}
+            for r in self.rules
+        ]
