@@ -35,7 +35,8 @@ def period_last(df: pd.DataFrame, freq: str, how: str = "last") -> pd.DataFrame:
 class MarketData:
     """Aligned, point-in-time market data.
 
-    close/open/high/low : date x ticker, daily
+    close/open/high/low : date x ticker, daily; NaN only before a fund's first bar
+    volume              : date x ticker, shares traded (optional)
     macro               : date x indicator, indexed by RELEASE date
     meta                : ticker x attributes (category, asset_class, leverage, ...)
     nav                 : date x ticker (optional, for premium strategies)
@@ -45,6 +46,7 @@ class MarketData:
     open: Optional[pd.DataFrame] = None
     high: Optional[pd.DataFrame] = None
     low: Optional[pd.DataFrame] = None
+    volume: Optional[pd.DataFrame] = None
     macro: Optional[pd.DataFrame] = None
     meta: Optional[pd.DataFrame] = None
     nav: Optional[pd.DataFrame] = None
@@ -58,7 +60,11 @@ class MarketData:
             raise ValueError("close index must be sorted ascending")
         if self.close.index.has_duplicates:
             raise ValueError("close index has duplicate dates")
-        for name in ("open", "high", "low", "nav"):
+        started = self.close.notna().cummax()
+        gaps = (started & self.close.isna()).sum()
+        if gaps.any():
+            raise ValueError(f"close has NaN after first price: {gaps[gaps > 0].to_dict()}")
+        for name in ("open", "high", "low", "volume", "nav"):
             tbl = getattr(self, name)
             if tbl is not None:
                 if not tbl.index.equals(self.close.index):
@@ -66,6 +72,10 @@ class MarketData:
                 missing = set(tbl.columns) ^ set(self.close.columns)
                 if missing:
                     raise ValueError(f"{name} tickers differ from close: {sorted(missing)}")
+        if self.macro is not None:
+            idx = self.macro.index
+            if not isinstance(idx, pd.DatetimeIndex) or not idx.is_monotonic_increasing or idx.has_duplicates:
+                raise ValueError("macro needs a sorted, unique DatetimeIndex of release dates")
         if self.meta is not None:
             unknown = set(self.close.columns) - set(self.meta.index)
             if unknown:
@@ -93,6 +103,7 @@ class MarketData:
             open=cut(self.open),
             high=cut(self.high),
             low=cut(self.low),
+            volume=cut(self.volume),
             macro=cut(self.macro),
             nav=cut(self.nav),
             as_of=t,
@@ -112,6 +123,7 @@ class MarketData:
             open=None if self.open is None else period_last(self.open, freq, "first"),
             high=None if self.high is None else period_last(self.high, freq, "max"),
             low=None if self.low is None else period_last(self.low, freq, "min"),
+            volume=None if self.volume is None else period_last(self.volume, freq, "sum"),
             nav=None if self.nav is None else period_last(self.nav, freq, "last"),
             macro=macro,
         )

@@ -19,6 +19,7 @@ class PortfolioConstructor:
 
     def apply(self, target: pd.Series, ctx: Context) -> pd.Series:
         w = target.reindex(ctx.tickers).fillna(0.0).astype(float)
+        w[ctx.price.isna()] = 0.0  # fund not launched yet: nothing to buy
         if self.long_only:
             w = w.clip(lower=0.0)
         if self.inverse_vol and (w != 0).any():

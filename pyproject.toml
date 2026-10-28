@@ -11,7 +11,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest", "ruff"]
-data = ["yfinance", "fredapi", "pyarrow", "duckdb", "pandera", "python-dotenv"]
+data = ["yfinance", "pyarrow", "duckdb", "pandera", "python-dotenv"]
 notebooks = ["jupyterlab", "matplotlib"]
 
 [build-system]
