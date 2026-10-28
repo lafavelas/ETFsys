@@ -15,6 +15,10 @@ import pandas as pd
 FREQ_PERIOD = {"D": "D", "W": "W-FRI", "M": "M"}
 
 
+class HoldoutError(RuntimeError):
+    """A run reached the locked holdout without saying it is the final run."""
+
+
 def period_last(df: pd.DataFrame, freq: str, how: str = "last") -> pd.DataFrame:
     """Resample to `freq`, indexed by the LAST TRADING DATE of each period.
 
@@ -40,6 +44,7 @@ class MarketData:
     macro               : date x indicator, indexed by RELEASE date
     meta                : ticker x attributes (category, asset_class, leverage, ...)
     nav                 : date x ticker (optional, for premium strategies)
+    holdout_start       : first date of the locked holdout (None = no holdout)
     """
 
     close: pd.DataFrame
@@ -51,6 +56,7 @@ class MarketData:
     meta: pd.DataFrame | None = None
     nav: pd.DataFrame | None = None
     as_of: pd.Timestamp | None = field(default=None)
+    holdout_start: pd.Timestamp | None = field(default=None)
 
     # ------------------------------------------------------------------ checks
     def validate(self) -> MarketData:
@@ -112,6 +118,35 @@ class MarketData:
             nav=cut(self.nav),
             as_of=t,
         )
+
+    def lock_holdout(self) -> MarketData:
+        """Drop every row dated on or after `holdout_start`, in every table.
+
+        Macro rows go by release date, so a value released inside the holdout is
+        dropped even if it describes an earlier period.
+        """
+        if self.holdout_start is None:
+            return self
+        start = pd.Timestamp(self.holdout_start)
+
+        def cut(df):
+            return None if df is None else df[df.index < start]
+
+        return replace(
+            self,
+            close=cut(self.close),
+            open=cut(self.open),
+            high=cut(self.high),
+            low=cut(self.low),
+            volume=cut(self.volume),
+            macro=cut(self.macro),
+            nav=cut(self.nav),
+        )
+
+    @property
+    def holdout_locked(self) -> bool:
+        """True when no price in this object falls inside the holdout."""
+        return self.holdout_start is None or self.close.index.max() < self.holdout_start
 
     def resample(self, freq: str) -> MarketData:
         """Weekly/monthly view. Macro is forward-filled onto the price calendar first."""

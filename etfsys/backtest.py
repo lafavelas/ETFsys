@@ -19,7 +19,7 @@ import pandas as pd
 
 from .context import Context
 from .costs import CostModel
-from .data import MarketData, period_last
+from .data import HoldoutError, MarketData, period_last
 from .metrics import summarize
 from .portfolio import PortfolioConstructor
 from .risk import RiskOverlay
@@ -39,6 +39,7 @@ class BacktestConfig:
     end: str | None = None
     refit_every_months: int = 12  # walk-forward refit, expanding window
     cost: CostModel = field(default_factory=CostModel)
+    final_holdout_run: bool = False  # the one-time run on the locked holdout (CLAUDE.md rule 6)
 
 
 @dataclass
@@ -51,6 +52,7 @@ class BacktestResult:
     weights: pd.DataFrame  # end-of-day weights after trading
     fit_log: list = field(default_factory=list)
     trades: list = field(default_factory=list)
+    holdout_touched: bool = False  # True only for a final_holdout_run inside the holdout
 
     def equity(self) -> pd.Series:
         return (1 + self.returns).cumprod()
@@ -91,6 +93,13 @@ class Backtester:
         tickers = list(close.columns)
         rets = close.pct_change(fill_method=None).fillna(0.0)
         days = close.loc[self.config.start : self.config.end].index
+        hs = self.data.holdout_start
+        touched = hs is not None and len(days) > 0 and days[-1] >= hs
+        if touched and not self.config.final_holdout_run:
+            raise HoldoutError(
+                f"run reaches the locked holdout (from {pd.Timestamp(hs).date()}); end it earlier "
+                "or set BacktestConfig(final_holdout_run=True) for the one final run"
+            )
         rebal = set(rebalance_dates(close.index, strategy.frequency).intersection(days))
 
         w = pd.Series(0.0, index=tickers)
@@ -167,4 +176,5 @@ class Backtester:
             weights=pd.DataFrame(out_w, index=idx, columns=tickers),
             fit_log=fit_log,
             trades=trades,
+            holdout_touched=touched,
         )

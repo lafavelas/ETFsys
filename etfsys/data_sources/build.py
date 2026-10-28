@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from ..data import MarketData
-from .config import UNIVERSE
+from .config import HOLDOUT_START, UNIVERSE
 from .fred import macro_wide
 from .prices import to_wide
 from .schemas import MACRO_LONG, PRICES
@@ -20,8 +20,16 @@ def processed_dir(root: str | Path = "data") -> Path:
     return Path(root) / "processed"
 
 
-def load_market_data(root: str | Path = "data", tickers: list[str] | None = None) -> MarketData:
-    """Everything `refresh` stored, validated, as one point-in-time MarketData."""
+def load_market_data(
+    root: str | Path = "data",
+    tickers: list[str] | None = None,
+    unlock_holdout: bool = False,
+) -> MarketData:
+    """Everything `refresh` stored, validated, as one point-in-time MarketData.
+
+    By default every table stops the day before HOLDOUT_START, so research code cannot
+    see the holdout even by accident. `unlock_holdout=True` is for the final run only.
+    """
     d = processed_dir(root)
     prices = PRICES.validate(pd.read_parquet(d / "prices.parquet"))
     if tickers is not None:
@@ -38,7 +46,7 @@ def load_market_data(root: str | Path = "data", tickers: list[str] | None = None
         },
         index=pd.Index(close.columns, name="ticker"),
     )
-    return MarketData(
+    data = MarketData(
         close=close,
         open=tables["open"],
         high=tables["high"],
@@ -46,7 +54,9 @@ def load_market_data(root: str | Path = "data", tickers: list[str] | None = None
         volume=tables["volume"],
         macro=macro,
         meta=meta,
-    ).validate()
+        holdout_start=pd.Timestamp(HOLDOUT_START),
+    )
+    return (data if unlock_holdout else data.lock_holdout()).validate()
 
 
 def load_reference(root: str | Path = "data") -> pd.DataFrame:

@@ -42,10 +42,11 @@ def refresh_macro(root: Path) -> pd.DataFrame:
 
 
 def summary(root: Path) -> None:
-    data = load_market_data(root)
+    data = load_market_data(root, unlock_holdout=True)  # data-quality check only, no research
     print(
         f"\nprices: {len(data.tickers)} tickers, {data.close.index[0].date()} -> {data.close.index[-1].date()}"
     )
+    print(f"locked holdout from {data.holdout_start.date()}: load_market_data() stops before it")
     print(data.meta[["category", "inception"]].to_string())
     long = pd.read_parquet(root / "processed" / "macro.parquet")
     macro = long.groupby("name").agg(

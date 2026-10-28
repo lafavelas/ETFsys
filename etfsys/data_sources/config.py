@@ -11,6 +11,11 @@ from typing import Literal
 
 START = "2000-01-01"
 
+# Locked holdout (CLAUDE.md rule 6): never used for tuning or design choices. Pinned here,
+# not derived from the last price, so refreshing data cannot quietly move it. Set
+# 2026-10-28 as "last 2 years"; change it only on purpose, in its own commit.
+HOLDOUT_START = "2024-10-29"
+
 # ticker: (category, asset_class). Same universe as the synthetic data.
 UNIVERSE: dict[str, tuple[str, str]] = {
     "SPY": ("US Large Cap", "Equity"),
